@@ -5,7 +5,7 @@ import os
 import glob
 
 
-def tif_convert(rlayer):
+def tif_convert(opfilename, rlayer):
     EPSG = '-a_srs EPSG:4326 -a_nodata -32768 -co "COMPRESS=PACKBITS"'
     translateOptionText = EPSG+" -a_ullr " + "-180" + " " + "90" + " " + "180" + " " + "-90"
     translateoptions = gdal.TranslateOptions(gdal.ParseCommandLine(translateOptionText))
@@ -25,35 +25,36 @@ if __name__ == "__main__":
         subhdflayer = ds.GetSubDatasets()[i][0]
         rlayer = gdal.Open(subhdflayer, gdal.GA_ReadOnly)
         opfilename = subhdflayer.split(':')[4]
-        
-        tif_convert(rlayer)
+        ''' this converts each sub dataset layer to a tiff '''
+        tif_convert(opfilename, rlayer)
 
     #converting the tifs into cogs 
-    tifs = glob.glob("*.tif")
-    for tif in tifs:
-        name = tif.split('/')[4].split('.')[0]
-        root = '/Users/manyachadha/weather'
-        os.system("gdal_translate {}/{}.tif {}/{}_stack_COG.tif -co COMPRESS=LZW -co TILED=YES -co BLOCKXSIZE=512 -co BLOCKYSIZE=512 -co COMPRESS=LZW -co PREDICTOR=2 -co COPY_SRC_OVERVIEWS=YES -co BIGTIFF=YES".format(root,name,root,name))
+    # for tif in tifs:
+    #     name = tif.split('/')[4].split('.')[0]
+    #     root = '/Users/manyachadha/weather'
+    #     os.system("gdal_translate {}/{}.tif {}/{}_stack_COG.tif -co COMPRESS=LZW -co TILED=YES -co BLOCKXSIZE=512 -co BLOCKYSIZE=512 -co COMPRESS=LZW -co PREDICTOR=2 -co COPY_SRC_OVERVIEWS=YES -co BIGTIFF=YES".format(root,name,root,name))
         
 
     #stacking the cogs to create a single tif
-    root = "/Users/manyachadha/weather"
-    cogs = glob.glob("/Users/manyachadha/weather/*COG.tif")
-    for cog in cogs:
-        name = cog.split("/")[4].split(".")[0]
-        with rasterio.open(cogs[0]) as src0:
+    # root = "/Users/manyachadha/weather"
+    # cogs = glob.glob("/Users/manyachadha/weather/*COG.tif")
+
+    tifs = glob.glob("*.tif")
+    for tif in tifs:
+        name = tif.split("/")[4].split(".")[0]
+        with rasterio.open(tifs[0]) as src0:
                     meta = src0.meta
-        meta.update(count = len(cogs))
-        with rasterio.open(root + "/stacked" + '/stack.tif', 'w', **meta) as dst:
-            for id, layer in enumerate(cogs, start=1):
+        meta.update(count = len(tifs))
+        with rasterio.open('stack.tif', 'w', **meta) as dst:
+            for id, layer in enumerate(tifs, start = 1):
                 with rasterio.open(layer) as src1:
                             dst.write_band(id, src1.read(1))
 
     #convering the final stacked tif into a cog
-    root = "/Users/manyachadha/weather"
-    os.system("gdal_translate {}/stacked/stack.tif {}/stacked/stack_COG.tif -co COMPRESS=LZW -co TILED=YES -co BLOCKXSIZE=512 -co BLOCKYSIZE=512 -co COMPRESS=LZW -co PREDICTOR=2 -co COPY_SRC_OVERVIEWS=YES -co BIGTIFF=YES".format(root,root))
+
+    os.system("gdal_translate stack.tif stack_COG.tif -co COMPRESS=LZW -co TILED=YES -co BLOCKXSIZE=512 -co BLOCKYSIZE=512 -co COMPRESS=LZW -co PREDICTOR=2 -co COPY_SRC_OVERVIEWS=YES -co BIGTIFF=YES")
 
     for i in glob.glob("/Users/manyachadha/weather/*"):
-        if i.endswith(".xml"):
+        if not i.endswith("stack_COG.tif"):
             os.remove(i)
 
